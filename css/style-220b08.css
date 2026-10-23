@@ -1,0 +1,1586 @@
+@charset "UTF-8";
+
+/* ── 1. RESET & BASE ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--c-bg);
+  color: var(--c-text);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a { color: inherit; text-decoration: none; transition: color .18s ease; }
+button { cursor: pointer; font: inherit; border: none; background: none; }
+img, svg, video { display: block; max-width: 100%; }
+ul, ol { list-style: none; }
+input, textarea, select { font: inherit; }
+
+/* <details>/<summary> — kill every browser's native disclosure
+   marker. Component-level FAQ styles already use `display:flex` on
+   <summary> which neutralises the marker in Firefox/Chromium, but
+   older Chromium builds + Safari still render a tiny dot/triangle
+   unless each of these three resets is present. Fixing it framework-
+   wide means any future FAQ / "click to expand" component ships
+   clean, no per-variant repetition needed. */
+summary { list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary::marker { display: none; content: ''; }
+
+/* ── 2. CSS TOKENS (framework-level, override with brand vars) ── */
+:root {
+  --radius-xs:   3px;
+  --radius-sm:   6px;
+  --radius:      10px;
+  --radius-lg:   14px;
+  --radius-xl:   20px;
+  --radius-full: 10080px;
+
+  --speed-fast:  .15s;
+  --speed:       .22s;
+  --speed-slow:  .35s;
+  --ease:        cubic-bezier(.4, 0, .2, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+
+  --z-header:   100;
+  --z-modal:    200;
+  --z-toast:    300;
+}
+
+/* ── 3. LAYOUT ─────────────────────────────────────────────────
+   ONE source of truth for inner-content width. Components MUST use
+   .qr-container for any "centered text/cards/grid" wrapper rather
+   than inventing their own max-width. Section backgrounds/colors
+   live on the OUTER section — content lives inside the container.
+   Mobile padding shrinks automatically below 607px so cards don't
+   touch the screen edge. */
+.qr-container {
+  width: 100%;
+  max-width: 1255px;
+  margin: 0 auto;
+  padding: 0 27px;
+}
+@media (max-width: 600px) {
+  .qr-container { padding: 0 16px; }
+}
+
+/* Banner placeholder. In the builder preview no real image is injected
+   into <img data-banner-image>, so its empty src renders as the
+   broken-image icon. Hiding it lets the card fall back to its
+   accent-gradient background. In production the generator fills src
+   via _inject_banner_image() and the rule no longer matches. */
+img[data-banner-image]:not([src]),
+img[data-banner-image][src=""] {
+  display: none !important;
+}
+
+/* Inline SVG icon baseline. Replaces the per-tag style="display:inline-block;
+   vertical-align:-0.152em;flex-shrink:0" that the icon generator used to emit
+   on every <svg>. Keeps icons aligned with their adjacent text and prevents
+   shrinking inside flex containers. */
+.qr-icon-inline {
+  display: inline-block;
+  vertical-align: -0.153em;
+  flex-shrink: 0;
+}
+
+/* Sticky-root state classes. Replaces inline `style="position:sticky;..."` that
+   the generator used to inject onto every <header data-sticky-root>. The
+   class is toggled per-site by the generator based on the sticky_settings
+   preference for the chosen header variant. */
+.qr-sticky-root { position: sticky; top: 0; z-index: 100; }
+.qr-static-root { position: relative; }
+
+/* Section vertical paddings. Use top/bottom-only (NOT shorthand `padding: 64px 0`)
+   so when an author accidentally combines qr-section with qr-container on the
+   same element, the horizontal padding from qr-container survives. Without
+   this rule split, `padding: 63px 0` shorthand resets horizontal padding to 0
+   and the section's text becomes flush against the viewport edge on mobile. */
+.qr-section        { padding-top: 65px; padding-bottom: 65px; }
+.qr-section-sm     { padding-top: 40px; padding-bottom: 39px; }
+.qr-section-xs     { padding-top: 23px; padding-bottom: 23px; }
+@media (max-width: 600px) {
+  .qr-section    { padding-top: 39px; padding-bottom: 39px; }
+  .qr-section-sm { padding-top: 28px; padding-bottom: 28px; }
+  .qr-section-xs { padding-top: 18px; padding-bottom: 18px; }
+}
+
+/* ── 4. GRID SYSTEM ──────────────────────────────────────────── */
+.qr-grid   { display: grid; gap: 20px; }
+.qr-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.qr-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.qr-grid-4 { grid-template-columns: repeat(4, 1fr); }
+.qr-grid-auto-sm { grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); }
+.qr-grid-auto    { grid-template-columns: repeat(auto-fill, minmax(239px, 1fr)); }
+.qr-grid-auto-lg { grid-template-columns: repeat(auto-fill, minmax(318px, 1fr)); }
+
+.qr-flex         { display: flex; }
+.qr-flex-col     { flex-direction: column; }
+.qr-items-center { align-items: center; }
+.qr-justify-between { justify-content: space-between; }
+.qr-justify-center  { justify-content: center; }
+.qr-gap-1 { gap: 8px; }
+.qr-gap-2 { gap: 16px; }
+.qr-gap-3 { gap: 23px; }
+.qr-gap-4 { gap: 40px; }
+.qr-wrap  { flex-wrap: wrap; }
+
+/* ── 5. TYPOGRAPHY — Single source of truth ─────────────────── */
+/*
+   Unified type scale used across the entire framework.
+   Element selectors (h1..h6) get the same defaults so unclassed
+   semantic markup also inherits the canonical sizes.
+   Component CSS should NEVER override font-size / font-weight /
+   letter-spacing on heading classes — use these classes everywhere.
+*/
+
+.qr-eyebrow {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--c-accent);
+}
+
+h1, .qr-h1 {
+  font-size: clamp(31px, 4.6vw, 48px);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -.035em;
+  color: var(--c-text);
+  margin: 0;
+}
+
+h2, .qr-h2 {
+  font-size: clamp(22px, 2.8vw, 31px);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+  color: var(--c-text);
+  margin: 0;
+}
+
+h3, .qr-h3 {
+  font-size: clamp(17px, 1.8vw, 20px);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -.01em;
+  color: var(--c-text);
+  margin: 0;
+}
+
+h4, .qr-h4 {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -.005em;
+  color: var(--c-text);
+  margin: 0;
+}
+
+h5, .qr-h5 {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--c-text);
+  margin: 0;
+}
+
+h6, .qr-h6 {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--c-text);
+  margin: 0;
+}
+
+/* Attention-grabbing modifier for CTA / promo headlines (h2 by markup,
+   visually larger so call-to-action stays loud). Apply with: class="qr-h-mega" */
+.qr-h-mega {
+  font-size: clamp(26px, 3.8vw, 42px);
+  letter-spacing: -.03em;
+  line-height: 1.1;
+}
+
+.qr-lead { font-size: 17px; color: var(--c-text-muted); line-height: 1.7; }
+.qr-lead-spaced { margin-top: 10px; margin-bottom: 24px; }
+.qr-body  { font-size: 15px; color: var(--c-text-muted); line-height: 1.65; }
+.qr-small { font-size: 13px; color: var(--c-text-muted); line-height: 1.5; }
+.qr-tiny  { font-size: 11px; color: var(--c-text-muted); line-height: 1.45; }
+
+.qr-gradient-text {
+  background: linear-gradient(136deg, var(--c-accent) 0%, color-mix(in srgb, var(--c-accent) 60%, var(--c-btn)) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.qr-text-accent  { color: var(--c-accent); }
+.qr-text-muted   { color: var(--c-text-muted); }
+.qr-text-btn     { color: var(--c-btn); }
+.qr-text-center  { text-align: center; }
+.qr-text-right   { text-align: right; }
+
+/* ── 6. BUTTONS ──────────────────────────────────────────────── */
+.qr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 31px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: .025em;
+  border-radius: var(--radius);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform var(--speed) var(--ease),
+              box-shadow var(--speed) var(--ease),
+              background var(--speed) var(--ease),
+              border-color var(--speed) var(--ease),
+              color var(--speed) var(--ease);
+  white-space: nowrap;
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+}
+
+.qr-btn:active { transform: scale(.97) !important; }
+
+/* Sizes */
+.qr-btn-xs  { padding: 6px 14px;  font-size: 12px; }
+.qr-btn-sm  { padding: 9px 20px;  font-size: 13px; }
+.qr-btn-lg  { padding: 16px 43px; font-size: 16px; }
+.qr-btn-xl  { padding: 21px 56px; font-size: 18px; font-weight: 800; }
+
+/* Shapes */
+.qr-btn-pill   { border-radius: var(--radius-full); }
+.qr-btn-sharp  { border-radius: 0; }
+.qr-btn-round  { border-radius: var(--radius-lg); }
+
+/* Primary — uses btn color
+   Hover effect unified with bonus_banner / app_banner / how_to / vip / support
+   local CTAs: brightness boost + thin accent ring halo + lift glow. */
+.qr-btn-primary {
+  background: var(--c-btn);
+  color: var(--c-btn-text);
+  box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--c-btn) 70%, transparent);
+  transition: box-shadow .25s ease, filter .18s ease, opacity .2s ease;
+}
+.qr-btn-primary:hover {
+  filter: brightness(1.06);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--c-btn) 22%, transparent),
+    0 12px 29px -8px color-mix(in srgb, var(--c-btn) 80%, transparent);
+}
+
+/* Accent — uses accent color */
+.qr-btn-accent {
+  background: var(--c-accent);
+  color: var(--c-bg);
+  font-weight: 800;
+  box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--c-accent) 70%, transparent);
+  transition: box-shadow .25s ease, filter .18s ease, opacity .2s ease;
+}
+.qr-btn-accent:hover {
+  filter: brightness(1.06);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--c-accent) 22%, transparent),
+    0 12px 28px -8px color-mix(in srgb, var(--c-accent) 80%, transparent);
+}
+
+/* Ghost — subtle border. Hover unified with bonus_banner pattern: ring halo. */
+.qr-btn-ghost {
+  background: transparent;
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+  transition: box-shadow .25s ease, background .2s ease, filter .18s ease;
+}
+.qr-btn-ghost:hover {
+  background: color-mix(in srgb, var(--c-accent) 12%, transparent);
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+  filter: brightness(1.06);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--c-accent) 18%, transparent),
+    0 12px 27px -8px color-mix(in srgb, var(--c-accent) 45%, transparent);
+}
+
+/* Outline — accent border */
+.qr-btn-outline {
+  background: transparent;
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+}
+.qr-btn-outline:hover {
+  background: var(--c-accent);
+  color: var(--c-bg);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--c-accent) 35%, transparent);
+}
+
+/* Surface — subtle bg */
+.qr-btn-surface {
+  background: var(--c-surface);
+  border-color: var(--c-border);
+  color: var(--c-text);
+}
+.qr-btn-surface:hover {
+  background: color-mix(in srgb, var(--c-surface) 70%, var(--c-accent));
+  border-color: var(--c-accent);
+}
+
+/* Danger */
+.qr-btn-danger {
+  background: #dc2626;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(220,38,38,0.28);
+}
+.qr-btn-danger:hover { box-shadow: 0 0 18px rgba(220,38,38,0.429); }
+
+/* Disabled */
+.qr-btn:disabled, .qr-btn[disabled] {
+  opacity: .45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Full width */
+.qr-btn-block { width: 100%; }
+
+/* Icon-only */
+.qr-btn-icon { padding: 11px; border-radius: var(--radius); }
+.qr-btn-icon.qr-btn-sm { padding: 7px; }
+
+/* ── 7. CARDS ────────────────────────────────────────────────── */
+.qr-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color var(--speed) var(--ease),
+              box-shadow var(--speed) var(--ease),
+              transform var(--speed) var(--ease);
+}
+
+.qr-card:hover {
+  border-color: color-mix(in srgb, var(--c-accent) 50%, transparent);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--c-accent) 10%, transparent),
+              0 2px 8px rgba(0,0,0,0.401);
+  transform: translateY(-3px);
+}
+
+.qr-card-body   { padding: 25px; }
+.qr-card-header { padding: 18px 24px; border-bottom: 1px solid var(--c-border); }
+.qr-card-footer { padding: 16px 24px; border-top: 1px solid var(--c-border); }
+
+/* Glow variant */
+.qr-card-glow {
+  box-shadow: 0 0 0 1px var(--c-border),
+              0 4px 24px rgba(0,0,0,0.536);
+}
+.qr-card-glow:hover {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c-accent) 70%, transparent),
+              0 0 41px color-mix(in srgb, var(--c-accent) 12%, transparent),
+              0 8px 40px rgba(0,0,0,0.495);
+  transform: translateY(-4px);
+}
+
+/* Premium variant */
+.qr-card-premium {
+  background: linear-gradient(144deg,
+    color-mix(in srgb, var(--c-surface) 90%, var(--c-accent)),
+    var(--c-surface));
+  border-color: color-mix(in srgb, var(--c-accent) 30%, transparent);
+}
+
+/* Flat — no hover */
+.qr-card-flat { transition: none; }
+.qr-card-flat:hover { transform: none; box-shadow: none; }
+
+/* ── 8. BADGES ───────────────────────────────────────────────── */
+.qr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.qr-badge-accent {
+  background: color-mix(in srgb, var(--c-accent) 15%, transparent);
+  color: var(--c-accent);
+  border: 1px solid color-mix(in srgb, var(--c-accent) 35%, transparent);
+}
+.qr-badge-live {
+  background: #dc2626;
+  color: #fff;
+  animation: qr-pulse-badge 2.039s ease-in-out infinite;
+  box-shadow: 0 0 12px rgba(220,38,38,0.488);
+}
+.qr-badge-hot {
+  background: linear-gradient(133deg, #f97316, #dc2626);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(249,115,22,0.426);
+}
+.qr-badge-new {
+  background: linear-gradient(138deg, #16a34a, #15803d);
+  color: #fff;
+}
+.qr-badge-vip {
+  background: linear-gradient(138deg, #92400e, #b45309);
+  color: #fef3c7;
+  border: 1px solid #d97706;
+}
+.qr-badge-surface {
+  background: var(--c-surface);
+  color: var(--c-text-muted);
+  border: 1px solid var(--c-border);
+}
+.qr-badge-top {
+  background: linear-gradient(132deg, var(--c-btn), color-mix(in srgb, var(--c-btn) 70%, var(--c-accent)));
+  color: var(--c-btn-text);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--c-btn) 35%, transparent);
+}
+
+/* Age/responsibility marker — deliberately low-contrast so it reads as
+   a compliance note, not a promo badge. Every footer uses this exact
+   class, so "18+" always looks identical across site variants. */
+.qr-badge-age {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-text-muted);
+  background: transparent;
+  border: 1px solid var(--c-border);
+  border-radius: 4px;
+  letter-spacing: .02em;
+  text-transform: none;
+  opacity: .75;
+  white-space: nowrap;
+}
+
+/* Live dot */
+.qr-live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: qr-pulse-dot 1.555s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* ── 9. TAGS / PILLS ─────────────────────────────────────────── */
+.qr-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-full);
+  color: var(--c-text-muted);
+  white-space: nowrap;
+  transition: border-color var(--speed) var(--ease), color var(--speed) var(--ease);
+}
+.qr-tag:hover, .qr-tag.active {
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+}
+.qr-tag.active {
+  background: color-mix(in srgb, var(--c-accent) 12%, transparent);
+}
+
+/* ── 10. HEADER ──────────────────────────────────────────────── */
+.qr-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  background: var(--c-primary);
+  border-bottom: 1px solid var(--c-border);
+}
+
+/* When toggled non-sticky by builder */
+.qr-header[style*="position:relative"] {
+  position: relative !important;
+}
+
+.qr-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 67px;
+  gap: 20px;
+}
+.qr-header-inner a[class*="-btn"],
+.qr-header-inner a[class*="_btn"],
+.qr-header-inner a.qr-btn {
+  font-size: 0.812rem !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 37px;
+}
+
+/* Promo strip above header */
+.qr-header-strip {
+  background: var(--c-accent);
+  color: var(--c-bg);
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 24px;
+}
+
+.qr-header-strip a {
+  color: inherit;
+  opacity: .85;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: opacity .15s, text-decoration-color .15s;
+}
+.qr-header-strip a:hover { opacity: 1; text-decoration-color: currentColor; }
+
+/* Logo */
+.qr-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: opacity .15s;
+}
+a.qr-logo:hover { opacity: .7; }
+div.qr-logo { user-select: none; }
+
+.qr-logo-icon {
+  width: 34px;
+  height: 34px;
+  background: var(--c-accent);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: 0;
+  padding-bottom: 1px;
+  color: var(--c-bg);
+  flex-shrink: 0;
+}
+
+.qr-logo-text {
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: -.03em;
+  color: var(--c-text);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.qr-logo-png {
+  height: 39px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+}
+
+/* Nav */
+.qr-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+}
+
+.qr-nav-link {
+  text-decoration: none;
+  white-space: nowrap;
+  position: relative;
+}
+.qr-nav > .qr-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--c-text-muted);
+  border-radius: var(--radius-sm);
+  transition: color var(--speed) var(--ease),
+              background var(--speed) var(--ease);
+}
+
+.qr-nav > .qr-nav-link:hover {
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-text) 6%, transparent);
+}
+
+.qr-nav > .qr-nav-link.active {
+  color: var(--c-accent);
+  background: color-mix(in srgb, var(--c-accent) 10%, transparent);
+}
+
+/* ── Nav Hover Styles ── */
+
+/* 1. Animated underline — line grows from center */
+.qr-nav-hover-1 .qr-nav > .qr-nav-link::after { content:''; position:absolute; bottom:2px; left:50%; width:0; height:2px; background:var(--c-accent); border-radius:2px; transition:width .25s ease, left .25s ease; }
+.qr-nav-hover-1 .qr-nav > .qr-nav-link:hover { background:none; color:var(--c-text); }
+.qr-nav-hover-1 .qr-nav > .qr-nav-link:hover::after { width:60%; left:20%; }
+
+/* 2. Pill highlight — soft accent pill */
+.qr-nav-hover-2 .qr-nav > .qr-nav-link { border-radius:21px; }
+.qr-nav-hover-2 .qr-nav > .qr-nav-link:hover { background:color-mix(in srgb, var(--c-accent) 12%, transparent); color:var(--c-accent); }
+
+/* 3. Clean accent text — just color shift */
+.qr-nav-hover-3 .qr-nav > .qr-nav-link:hover { background:none; color:var(--c-accent); }
+
+/* 4. Soft bg — subtle background tint */
+.qr-nav-hover-4 .qr-nav > .qr-nav-link { border-radius:6px; }
+.qr-nav-hover-4 .qr-nav > .qr-nav-link:hover { background:color-mix(in srgb, var(--c-text) 8%, transparent); color:var(--c-text); }
+
+/* 5. Glow — soft text glow on hover */
+.qr-nav-hover-5 .qr-nav > .qr-nav-link:hover { background:none; color:var(--c-accent); text-shadow:0 0 10px color-mix(in srgb, var(--c-accent) 40%, transparent); }
+
+/* 6. Full underline — line slides from left */
+.qr-nav-hover-6 .qr-nav > .qr-nav-link::after { content:''; position:absolute; bottom:2px; left:0; width:0; height:2px; background:var(--c-accent); transition:width .2s ease; }
+.qr-nav-hover-6 .qr-nav > .qr-nav-link:hover { background:none; color:var(--c-text); }
+.qr-nav-hover-6 .qr-nav > .qr-nav-link:hover::after { width:100%; }
+
+/* 7. Thin underline — subtle 1px line appears */
+.qr-nav-hover-7 .qr-nav > .qr-nav-link::after { content:''; position:absolute; bottom:4px; left:16px; right:16px; height:1px; background:var(--c-accent); opacity:0; transition:opacity .2s; }
+.qr-nav-hover-7 .qr-nav > .qr-nav-link:hover { background:none; color:var(--c-accent); }
+.qr-nav-hover-7 .qr-nav > .qr-nav-link:hover::after { opacity:1; }
+
+/* 8. Accent pill bg — filled rounded */
+.qr-nav-hover-8 .qr-nav > .qr-nav-link { border-radius:6px; }
+.qr-nav-hover-8 .qr-nav > .qr-nav-link:hover { background:color-mix(in srgb, var(--c-accent) 15%, transparent); color:var(--c-accent); }
+
+/* 9. Dot — small accent dot below */
+.qr-nav-hover-9 .qr-nav > .qr-nav-link::after { content:''; position:absolute; bottom:2px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background:var(--c-accent); opacity:0; transition:opacity .2s; }
+.qr-nav-hover-9 .qr-nav > .qr-nav-link:hover { background:none; color:var(--c-text); }
+.qr-nav-hover-9 .qr-nav > .qr-nav-link:hover::after { opacity:1; }
+
+/* 10. Border bottom — clean 2px bottom line */
+.qr-nav-hover-10 .qr-nav > .qr-nav-link::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background:var(--c-accent); transform:scaleX(0); transition:transform .2s ease; }
+.qr-nav-hover-10 .qr-nav > .qr-nav-link:hover { background:none; color:var(--c-text); }
+.qr-nav-hover-10 .qr-nav > .qr-nav-link:hover::after { transform:scaleX(1); }
+
+/* Lang Switcher */
+.qr-lang-switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+.qr-lang-current {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  width: 36px;
+  height: 35px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  transition: opacity 0.147s;
+  padding: 0;
+}
+.qr-lang-current:hover { opacity: 0.75; }
+.qr-lang-current .qr-lang-flag {
+  width: 33px;
+  height: 32px;
+}
+.qr-lang-flag {
+  width: 22px;
+  height: 23px;
+  border-radius: 50%;
+  display: block;
+  object-fit: cover;
+  flex-shrink: 0;
+  aspect-ratio: 1;
+}
+.qr-lang-code { text-transform: uppercase; letter-spacing: 0.04em; }
+.qr-lang-arrow { font-size: 0.496rem; opacity: 0.5; transition: transform 0.201s; }
+.qr-lang-switch:hover .qr-lang-arrow { transform: rotate(183deg); }
+.qr-lang-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  padding-top: 4px;
+  min-width: 159px;
+  background: var(--c-primary);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.154s;
+  z-index: 200;
+}
+.qr-lang-switch:hover .qr-lang-dropdown {
+  opacity: 1;
+  pointer-events: auto;
+}
+.qr-lang-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: var(--c-text-muted);
+  text-decoration: none;
+  font-size: 0.792rem;
+  font-weight: 500;
+  transition: background 0.146s, color 0.147s;
+}
+.qr-lang-option:hover { background: color-mix(in srgb, var(--c-text) 7%, transparent); color: var(--c-text); }
+.qr-lang-option.active { color: var(--c-accent); }
+
+/* Legacy */
+.qr-nav-underline .qr-nav-link { border-radius: 0; border-bottom: 2px solid transparent; padding-bottom: 6px; }
+.qr-nav-underline .qr-nav-link:hover { background: none; border-bottom-color: var(--c-border); }
+.qr-nav-underline .qr-nav-link.active { background: none; border-bottom-color: var(--c-accent); }
+
+/* CTA group */
+.qr-header-cta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* Mobile menu button */
+.qr-menu-btn {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background var(--speed) var(--ease);
+}
+.qr-menu-btn:hover { background: color-mix(in srgb, var(--c-text) 8%, transparent); }
+.qr-menu-btn span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: var(--c-text);
+  border-radius: 2px;
+  transition: transform var(--speed) var(--ease), opacity var(--speed) var(--ease);
+}
+.qr-menu-btn.open span:nth-child(1) { transform: rotate(46deg) translate(5px, 5px); }
+.qr-menu-btn.open span:nth-child(2) { opacity: 0; }
+.qr-menu-btn.open span:nth-child(3) { transform: rotate(-44deg) translate(5px, -5px); }
+
+/* Mobile drawer */
+.qr-mobile-nav {
+  display: none;
+  flex-direction: column;
+  background: var(--c-primary);
+  border-top: 1px solid var(--c-border);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.184);
+}
+.qr-mobile-nav.open { display: flex; }
+
+/* ── Mobile header policy (framework override) ───────────────────
+   Keep Login / Register / Lang switcher visible on mobile across ALL
+   30+ header variants. Components historically hid their `*-desktop`
+   action groups behind a hamburger; the framework now wins and forces
+   them visible inline so brand-critical actions never require a tap
+   to reveal. Buttons shrink to fit narrow viewports.
+
+   Selector permissiveness:
+   - `[class*="cta-desktop"]` substring match covers BOTH hyphen- and
+     underscore-separated prefixes (`.ja33-cta-desktop` AND `.h18_cta-desktop`).
+   - No `.qr-header` ancestor scope: 3 header variants (h11/h14/h21)
+     don't use the `qr-header` class. The class names below are
+     specific enough that we don't need parent scoping. */
+@media (max-width: 768px) {
+  body [class*="cta-desktop"],
+  body [class*="actions-desktop"],
+  body [class*="btns-desktop"],
+  body [class*="cta-wrap"],
+  body [class*="login-actions"],
+  body [class*="strip-actions"] {
+    display: flex !important;
+    align-items: center;
+    gap: 6px !important;
+  }
+  body [class*="cta-desktop"] .qr-btn,
+  body [class*="actions-desktop"] .qr-btn,
+  body [class*="btns-desktop"] .qr-btn,
+  body [class*="cta-wrap"] .qr-btn,
+  body [class*="cta-desktop"] button,
+  body [class*="actions-desktop"] button,
+  body [class*="btns-desktop"] button,
+  body [class*="cta-wrap"] button,
+  body [class*="cta-desktop"] a,
+  body [class*="actions-desktop"] a,
+  body [class*="btns-desktop"] a,
+  body [class*="cta-wrap"] a {
+    padding: 7px 12px !important;
+    font-size: 11px !important;
+  }
+  /* Lang switcher stays compact on mobile too */
+  .qr-lang-switch, .qr-lang-current {
+    font-size: 12px !important;
+  }
+}
+.qr-mobile-nav .qr-container { padding-top: 8px; padding-bottom: 8px; }
+.qr-mobile-nav .qr-nav { display: flex; flex-direction: column; gap: 2px; }
+.qr-mobile-nav .qr-nav-link {
+  display: block;
+  padding: 11px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.946rem;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--c-text) 75%, transparent);
+  text-decoration: none;
+  transition: background 0.152s, color 0.146s;
+}
+.qr-mobile-nav .qr-nav-link:hover {
+  background: color-mix(in srgb, var(--c-text) 7%, transparent);
+  color: var(--c-text);
+}
+
+/* ── 11. HERO ────────────────────────────────────────────────── */
+.qr-hero {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--c-grad-start) 0%, var(--c-grad-end) 100%);
+}
+
+.qr-hero-inner {
+  position: relative;
+  z-index: 1;
+  /* Vertical-only padding — using shorthand `padding: 49px 0` would also
+     wipe out the horizontal padding (27px / 16px) that .qr-container
+     provides on the SAME element, leaving hero text flush against the
+     viewport edge on mobile. Set top/bottom explicitly so horizontal
+     padding inherited from .qr-container stays intact. */
+  padding-top: 49px;
+  padding-bottom: 48px;
+}
+
+/* Decorative bg mesh */
+.qr-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 20% 50%, color-mix(in srgb, var(--c-accent) 8%, transparent), transparent),
+    radial-gradient(ellipse 40% 40% at 80% 20%, color-mix(in srgb, var(--c-btn) 6%, transparent), transparent);
+  pointer-events: none;
+}
+
+.qr-hero-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 47px;
+}
+
+.qr-hero-center { text-align: center; max-width: 750px; margin: 0 auto; }
+
+/* ── 12. DIVIDERS ────────────────────────────────────────────── */
+.qr-divider     { height: 1px; background: var(--c-border); }
+.qr-divider-v   { width: 1px; height: auto; align-self: stretch; background: var(--c-border); flex-shrink: 0; }
+
+.qr-divider-accent {
+  height: 2px;
+  background: linear-gradient(91deg, transparent, var(--c-accent), transparent);
+}
+
+.qr-section-break {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+}
+.qr-section-break::before,
+.qr-section-break::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(88deg, transparent, var(--c-border));
+}
+.qr-section-break::after {
+  background: linear-gradient(273deg, transparent, var(--c-border));
+}
+
+/* ── 13. SCROLL STRIP (game cards, etc.) ─────────────────────── */
+.qr-scroll-strip {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 0 12px;
+}
+
+.qr-scroll-strip::-webkit-scrollbar { height: 3px; }
+.qr-scroll-strip::-webkit-scrollbar-track { background: var(--c-surface); border-radius: 2px; }
+.qr-scroll-strip::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 2px; }
+
+.qr-scroll-strip > * { scroll-snap-align: start; flex-shrink: 0; }
+
+/* ── 14. GAME CARD ───────────────────────────────────────────── */
+.qr-game-card {
+  width: 153px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color var(--speed) var(--ease),
+              transform var(--speed) var(--ease),
+              box-shadow var(--speed) var(--ease);
+  cursor: pointer;
+}
+
+.qr-game-card:hover {
+  border-color: var(--c-accent);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px color-mix(in srgb, var(--c-accent) 15%, transparent);
+}
+
+.qr-game-thumb {
+  height: 98px;
+  background: linear-gradient(134deg, var(--c-primary), var(--c-secondary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 38px;
+  position: relative;
+  overflow: hidden;
+}
+
+.qr-game-thumb-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.637);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--speed) var(--ease);
+  backdrop-filter: blur(2px);
+}
+
+.qr-game-card:hover .qr-game-thumb-overlay { opacity: 1; }
+
+.qr-play-btn {
+  width: 41px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--c-btn);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c-btn-text);
+  font-size: 16px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.375);
+  transition: transform var(--speed-fast) var(--ease-spring);
+}
+.qr-play-btn:hover { transform: scale(1.1); }
+
+.qr-game-info { padding: 10px 12px 12px; }
+
+.qr-game-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qr-game-provider {
+  font-size: 11px;
+  color: var(--c-text-muted);
+  margin-top: 3px;
+}
+
+/* ── 15. PROGRESS BAR ────────────────────────────────────────── */
+.qr-progress {
+  height: 5px;
+  background: color-mix(in srgb, var(--c-border) 80%, transparent);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.qr-progress-fill {
+  height: 100%;
+  background: linear-gradient(88deg, var(--c-accent), color-mix(in srgb, var(--c-accent) 70%, var(--c-btn)));
+  border-radius: var(--radius-full);
+  transition: width .8s var(--ease);
+}
+
+.qr-progress-thin { height: 3px; }
+.qr-progress-thick { height: 8px; }
+
+/* ── 16. STATS ───────────────────────────────────────────────── */
+.qr-stat-value {
+  font-size: 38px;
+  font-weight: 900;
+  letter-spacing: -.04em;
+  color: var(--c-accent);
+  line-height: 1;
+}
+
+.qr-stat-label {
+  font-size: 12px;
+  color: var(--c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  margin-top: 6px;
+}
+
+/* ── 17. COUNTDOWN ───────────────────────────────────────────── */
+.qr-countdown {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qr-countdown-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: color-mix(in srgb, var(--c-bg) 80%, transparent);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  padding: 12px 18px;
+  min-width: 66px;
+  backdrop-filter: blur(8px);
+}
+
+.qr-countdown-num {
+  font-size: 31px;
+  font-weight: 900;
+  letter-spacing: -.04em;
+  color: var(--c-accent);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.qr-countdown-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: var(--c-text-muted);
+  margin-top: 5px;
+}
+
+.qr-countdown-sep {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--c-text-muted);
+  margin-top: -10px;
+  opacity: .5;
+}
+
+/* ── 18. RATING ──────────────────────────────────────────────── */
+.qr-stars { color: #f59e0b; font-size: 15px; letter-spacing: 1px; }
+.qr-score {
+  font-size: 39px;
+  font-weight: 900;
+  letter-spacing: -.04em;
+  color: var(--c-accent);
+  line-height: 1;
+}
+.qr-score-sm { font-size: 24px; }
+
+/* ── 19. PAYMENT PILLS ───────────────────────────────────────── */
+.qr-payment-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.qr-payment-pill {
+  padding: 5px 14px;
+  background: color-mix(in srgb, var(--c-surface) 80%, transparent);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text-muted);
+  transition: border-color var(--speed) var(--ease), color var(--speed) var(--ease);
+}
+.qr-payment-pill:hover { border-color: var(--c-accent); color: var(--c-text); }
+
+/* Payment icon (SVG / PNG) rendered in the footer. Without an explicit
+   size, SVGs shipped without intrinsic width/height attributes expand
+   to fill the parent — turning a single BTC logo into a full-screen
+   takeover. Fixed height + auto width keeps every icon visually
+   consistent regardless of their natural dimensions, and the
+   surrounding `.qr-payment-pills` flex container handles wrapping.
+
+   White pill background because our colored brand SVGs (Visa blue, MC
+   red/yellow, Bitcoin orange, PayPal navy+cyan, etc.) are designed for
+   light surfaces — dropping them on a dark casino footer kills the
+   contrast. A near-white pill with subtle 92 % opacity lets the dark
+   footer tone show through just enough to sit comfortably, without
+   washing out the icon's own colours. */
+.qr-pay-logo {
+  height: 22px;
+  width: auto;
+  max-width: 55px;
+  display: inline-block;
+  object-fit: contain;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.928);
+  border: 1px solid rgba(0, 0, 0, 0.037);
+  border-radius: 6px;
+  box-sizing: content-box;
+  transition: transform var(--speed) var(--ease), box-shadow var(--speed) var(--ease);
+}
+.qr-pay-logo:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.203);
+}
+
+/* ── 20. INPUT ───────────────────────────────────────────────── */
+.qr-input {
+  width: 100%;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  padding: 13px 18px;
+  font-size: 14px;
+  color: var(--c-text);
+  outline: none;
+  transition: border-color var(--speed) var(--ease),
+              box-shadow var(--speed) var(--ease);
+}
+
+.qr-input:focus {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-accent) 18%, transparent);
+}
+
+.qr-input::placeholder { color: var(--c-text-muted); }
+
+/* Input + button inline */
+.qr-input-group {
+  display: flex;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color var(--speed) var(--ease);
+}
+.qr-input-group:focus-within { border-color: var(--c-accent); }
+.qr-input-group .qr-input {
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  flex: 1;
+}
+.qr-input-group .qr-btn { border-radius: 0; border: none; }
+
+/* ── 21. TABLE ───────────────────────────────────────────────── */
+.qr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.qr-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--c-text-muted);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.qr-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--c-border) 50%, transparent);
+  color: var(--c-text);
+}
+
+.qr-table tr:hover td { background: color-mix(in srgb, var(--c-surface) 50%, transparent); }
+.qr-table tr:last-child td { border-bottom: none; }
+
+/* ── 22. TABS ────────────────────────────────────────────────── */
+.qr-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  padding: 4px;
+}
+
+.qr-tab {
+  flex: 1;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text-muted);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--speed) var(--ease);
+  text-align: center;
+  border: 1px solid transparent;
+}
+
+.qr-tab:hover { color: var(--c-text); background: color-mix(in srgb, var(--c-text) 6%, transparent); }
+
+.qr-tab.active {
+  background: var(--c-accent);
+  color: var(--c-bg);
+  font-weight: 700;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--c-accent) 40%, transparent);
+}
+
+/* Simple underline tabs */
+.qr-tabs-underline {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--c-border);
+  padding: 0;
+  background: none;
+  border-radius: 0;
+}
+
+.qr-tabs-underline .qr-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 10px 21px;
+  margin-bottom: -1px;
+}
+
+.qr-tabs-underline .qr-tab.active {
+  background: none;
+  color: var(--c-accent);
+  border-bottom-color: var(--c-accent);
+  box-shadow: none;
+}
+
+/* ── 23. SLIDER ──────────────────────────────────────────────── */
+.qr-slider {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+
+.qr-slider-track {
+  display: flex;
+  transition: transform .5s var(--ease);
+  will-change: transform;
+}
+
+.qr-slide {
+  min-width: 100%;
+}
+
+.qr-slider-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  padding: 0 12px;
+}
+
+.qr-slider-btn {
+  width: 42px;
+  height: 43px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--c-bg) 80%, transparent);
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: all;
+  transition: background var(--speed) var(--ease), transform var(--speed-fast) var(--ease);
+  backdrop-filter: blur(8px);
+  font-size: 18px;
+}
+.qr-slider-btn:hover { background: var(--c-accent); color: var(--c-bg); transform: scale(1.05); }
+.qr-slider-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+.qr-slider-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.qr-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-border);
+  cursor: pointer;
+  transition: background var(--speed) var(--ease),
+              width var(--speed) var(--ease);
+  border: none;
+}
+.qr-dot.active { width: 24px; border-radius: 4px; background: var(--c-accent); }
+
+/* ── 24. FOOTER ──────────────────────────────────────────────── */
+.qr-footer {
+  background: var(--c-primary);
+  border-top: 1px solid var(--c-border);
+  padding: 48px 0 28px;
+}
+
+.qr-footer-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: 40px;
+  padding-bottom: 36px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.qr-footer-brand p {
+  font-size: 14px;
+  color: var(--c-text-muted);
+  line-height: 1.7;
+  margin-top: 14px;
+  max-width: 279px;
+}
+
+.qr-footer-col h4 {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--c-text-muted);
+  margin-bottom: 16px;
+}
+
+.qr-footer-links { display: flex; flex-direction: column; gap: 10px; }
+.qr-footer-link {
+  font-size: 14px;
+  color: var(--c-text-muted);
+  transition: color var(--speed) var(--ease);
+}
+.qr-footer-link:hover { color: var(--c-accent); }
+
+.qr-footer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding-top: 23px;
+}
+
+.qr-footer-legal {
+  font-size: 12px;
+  color: color-mix(in srgb, var(--c-text-muted) 60%, transparent);
+  line-height: 1.7;
+  max-width: 813px;
+}
+
+/* ── 25. UTILITY HELPERS ─────────────────────────────────────── */
+.qr-hidden       { display: none !important; }
+.qr-sr-only      { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+.qr-mt-1 { margin-top: 8px; }
+.qr-mt-2 { margin-top: 16px; }
+.qr-mt-3 { margin-top: 28px; }
+.qr-mt-4 { margin-top: 49px; }
+.qr-mb-1 { margin-bottom: 8px; }
+.qr-mb-2 { margin-bottom: 16px; }
+.qr-mb-3 { margin-bottom: 28px; }
+
+/* ── 26. SCROLL-TRIGGERED ANIMATIONS ────────────────────────── */
+[data-animate] {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity .55s var(--ease), transform .55s var(--ease);
+}
+
+[data-animate].qr-visible {
+  opacity: 1;
+  transform: none;
+}
+
+[data-animate="fade"] { transform: none; }
+[data-animate="left"]  { transform: translateX(-24px); }
+[data-animate="right"] { transform: translateX(24px); }
+[data-animate="scale"] { transform: scale(.92); }
+
+/* Delay helpers */
+[data-delay="1"] { transition-delay: .1s; }
+[data-delay="2"] { transition-delay: .2s; }
+[data-delay="3"] { transition-delay: .3s; }
+[data-delay="4"] { transition-delay: .4s; }
+
+/* ── 27. KEYFRAME ANIMATIONS ─────────────────────────────────── */
+@keyframes qr-pulse-badge {
+  0%, 100% { box-shadow: 0 0 8px rgba(220,38,38,0.464); }
+  50%       { box-shadow: 0 0 20px rgba(220,38,38,0.807); }
+}
+
+@keyframes qr-pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.5); opacity: .6; }
+}
+
+@keyframes qr-glow {
+  0%, 100% { box-shadow: 0 0 12px color-mix(in srgb, var(--c-accent) 25%, transparent); }
+  50%       { box-shadow: 0 0 31px color-mix(in srgb, var(--c-accent) 55%, transparent); }
+}
+
+@keyframes qr-float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-8px); }
+}
+
+@keyframes qr-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@keyframes qr-spin {
+  to { transform: rotate(352deg); }
+}
+
+@keyframes qr-marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes qr-count {
+  from { opacity: 0; transform: scale(.7); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.qr-animate-glow   { animation: qr-glow   1.955s ease-in-out infinite; }
+.qr-animate-float  { animation: qr-float  3.06s ease-in-out infinite; }
+.qr-animate-spin   { animation: qr-spin   7.948s linear infinite; }
+.qr-animate-marquee { animation: qr-marquee 20.172s linear infinite; }
+
+/* Skeleton loader */
+.qr-skeleton {
+  background: linear-gradient(90deg,
+    var(--c-surface) 25%,
+    color-mix(in srgb, var(--c-surface) 60%, var(--c-border)) 50%,
+    var(--c-surface) 75%);
+  background-size: 200% 100%;
+  animation: qr-shimmer 1.473s infinite;
+  border-radius: var(--radius);
+}
+
+/* ── 28. SPECIAL EFFECTS ─────────────────────────────────────── */
+
+/* Glass card */
+.qr-glass {
+  background: color-mix(in srgb, var(--c-surface) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-text) 12%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Neon glow border */
+.qr-neon {
+  border-color: var(--c-accent) !important;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c-accent) 40%, transparent),
+              0 0 39px color-mix(in srgb, var(--c-accent) 15%, transparent),
+              inset 0 0 21px color-mix(in srgb, var(--c-accent) 5%, transparent);
+}
+
+/* Gradient border trick */
+.qr-grad-border {
+  position: relative;
+  border: none !important;
+}
+.qr-grad-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(134deg, var(--c-accent), var(--c-btn));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: destination-out;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ── 29. RESPONSIVE ──────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .qr-container { padding: 0 20px; }
+  .qr-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .qr-footer-grid { grid-template-columns: 1fr 1fr; gap: 29px; }
+  .qr-hero-split { grid-template-columns: 1fr; gap: 37px; }
+}
+
+@media (max-width: 768px) {
+  .qr-container { padding: 0 16px; }
+  .qr-section { padding-top: 53px; padding-bottom: 52px; }
+  .qr-section-sm { padding-top: 37px; padding-bottom: 35px; }
+
+  .qr-grid-2, .qr-grid-3, .qr-grid-4 { grid-template-columns: 1fr; }
+
+  .qr-nav { display: none; }
+  .qr-menu-btn { display: flex; }
+
+  .qr-header-inner { height: 61px; }
+  .qr-logo-text { font-size: 16px; }
+
+  .qr-footer-grid { grid-template-columns: 1fr; gap: 24px; }
+  .qr-footer-bottom { flex-direction: column; align-items: flex-start; }
+
+  .qr-hero-inner { padding-top: 57px; padding-bottom: 56px; }
+  .qr-h1 { font-size: 32px; }
+  .qr-h2 { font-size: 26px; }
+
+  .qr-countdown-box { padding: 10px 12px; min-width: 53px; }
+  .qr-countdown-num { font-size: 25px; }
+
+  .qr-tabs { flex-wrap: wrap; }
+}
+
+@media (max-width: 480px) {
+  .qr-btn { padding: 11px 22px; }
+  .qr-btn-lg { padding: 14px 32px; font-size: 15px; }
+  .qr-btn-xl { padding: 16px 37px; font-size: 16px; }
+  .qr-stat-value { font-size: 29px; }
+  .qr-score { font-size: 33px; }
+}
